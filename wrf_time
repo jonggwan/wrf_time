@@ -1,0 +1,238 @@
+#!/bin/bash
+#
+# This script is made by jonggwan.do at gmail.com.
+# This requires 'bash', 'grep', 'gawk', and 'bc' if your linux system do not have this util.
+#
+# initial version: April 1, 2017
+#
+
+if [ "$#" -eq "0" ]; then
+ input=rsl.error.0000
+ echo "Since there is no passed filename, it will use $input as filename for timing analysis"
+else
+ input=$1
+fi
+
+[[ -f $input ]]  || { echo "File does not exist" ; exit 1; }
+
+nd=`egrep "*Timing for.*domain[[:space:]]*" $input | awk '{match($0,"domain[[:space:]]*[0-9]*:",a)}{print a[0]}' | awk '{print $2}' | sort | uniq | sed 's/.$//' | tail -1`
+
+##############################################################
+# This is Jason's specific modification for WRF timing
+if [ `grep "Timing for wrf_init" $input | wc -l` -eq "1" ]; then
+ initime=`egrep "*Timing for wrf_init.*" $input | awk '{match($0,"[0-9.]*[[:space:]]elapsed",a)}{print a[0]}' | awk '{print $1}'`
+else
+ initime=0
+fi
+if [ `grep "Timing for wrf_dfi" $input | wc -l` -eq "1" ]; then
+ dfitime=`egrep "*Timing for wrf_dfi.*" $input | awk '{match($0,"[0-9.]*[[:space:]]elapsed",a)}{print a[0]}' | awk '{print $1}'`
+else
+ dfitime=0
+fi
+if [ `grep "Timing for wrf_run" $input | wc -l` -eq "1" ]; then
+ runtime=`egrep "*Timing for wrf_run.*" $input | awk '{match($0,"[0-9.]*[[:space:]]elapsed",a)}{print a[0]}' | awk '{print $1}'`
+else
+ runtime=0
+fi
+if [ `grep "Timing for wrf_final" $input | wc -l` -eq "1" ]; then
+ finaltime=`egrep "*Timing for wrf_final.*" $input | awk '{match($0,"[0-9.]*[[:space:]]elapsed",a)}{print a[0]}' | awk '{print $1}'`
+else
+ finaltime=0
+fi
+##############################################################
+
+inputsum[0]=0.0
+if [ "$nd" -ge "1" ]; then
+ for dom in `seq 1 $nd`
+ do
+  stat=`egrep "*Timing for processing wrfinput.*domain[[:space:]]*${dom}" $input | awk '{match($0,"[0-9.]*[[:space:]]elapsed",a)}{print a[0]}' | awk 'BEGIN {sum=0;nc=0}; {sum=sum+$1;nc=nc+1}; END {printf "%.5f %d", sum, nc}'`
+  inputstep[$dom]=`echo $stat | awk '{print $2}'`
+  inputsum[$dom]=0.0
+  if [ "${inputstep[$dom]}" -gt "0" ]; then
+   inputsum[$dom]=`echo $stat | awk '{print $1}'`
+   inputsum[0]=`echo "scale=6;${inputsum[0]}+${inputsum[$dom]}" | bc -q`
+   inputime[$dom]=`echo "scale=6;${inputsum[$dom]}/${inputstep[$dom]}" | bc -q`
+  fi
+ done
+fi
+
+irestartsum[0]=0.0
+if [ "$nd" -ge "1" ]; then
+ for dom in `seq 1 $nd`
+ do
+  stat=`egrep "*Timing for processing restart.*domain[[:space:]]*${dom}" $input | awk '{match($0,"[0-9.]*[[:space:]]elapsed",a)}{print a[0]}' | awk 'BEGIN {sum=0;nc=0}; {sum=sum+$1;nc=nc+1}; END {printf "%.5f %d", sum, nc}'`
+  irestartstep[$dom]=`echo $stat | awk '{print $2}'`
+  irestartsum[$dom]=0.0
+  if [ "${irestartstep[$dom]}" -gt "0" ]; then
+   irestartsum[$dom]=`echo $stat | awk '{print $1}'`
+   irestartsum[0]=`echo "scale=6;${irestartsum[0]}+${irestartsum[$dom]}" | bc -q`
+   irestartime[$dom]=`echo "scale=6;${irestartsum[$dom]}/${irestartstep[$dom]}" | bc -q`
+  fi
+ done
+fi
+
+ilateralsum[0]=0.0
+if [ "$nd" -ge "1" ]; then
+ for dom in `seq 1 $nd`
+ do
+  stat=`egrep "*Timing for processing lateral.*domain[[:space:]]*${dom}" $input | awk '{match($0,"[0-9.]*[[:space:]]elapsed",a)}{print a[0]}' | awk 'BEGIN {sum=0;nc=0}; {sum=sum+$1;nc=nc+1}; END {printf "%.5f %d", sum, nc}'`
+  ilateralstep[$dom]=`echo $stat | awk '{print $2}'`
+  ilateralsum[$dom]=0.0
+  if [ "${ilateralstep[$dom]}" -gt "0" ]; then
+   ilateralsum[$dom]=`echo $stat | awk '{print $1}'`
+   ilateralsum[0]=`echo "scale=6;${ilateralsum[0]}+${ilateralsum[$dom]}" | bc -q`
+   ilateraltime[$dom]=`echo "scale=6;${ilateralsum[$dom]}/${ilateralstep[$dom]}" | bc -q`
+  fi
+ done
+fi
+
+orestartsum[0]=0.0
+if [ "$nd" -ge "1" ]; then
+ for dom in `seq 1 $nd`
+ do
+  stat=`egrep "*Timing for Writing restart.*domain[[:space:]]*${dom}" $input | awk '{match($0,"[0-9.]*[[:space:]]elapsed",a)}{print a[0]}' | awk 'BEGIN {sum=0;nc=0}; {sum=sum+$1;nc=nc+1}; END {printf "%.5f %d %.5f", sum, nc, $1}'`
+  orestartstep[$dom]=`echo $stat | awk '{print $2}'`
+  orestartsum[$dom]=0.0
+  if [ "${orestartstep[$dom]}" -gt "0" ]; then
+   orestartsum[$dom]=`echo $stat | awk '{print $1}'`
+   orestartsum[0]=`echo "scale=6;${orestartsum[0]}+${orestartsum[$dom]}" | bc -q`
+   orestartime[$dom]=`echo "scale=6;${orestartsum[$dom]}/${orestartstep[$dom]}" | bc -q`
+  fi
+ done
+fi
+
+outsum[0]=0.0
+if [ "$nd" -ge "1" ]; then
+ for dom in `seq 1 $nd`
+ do
+  stat=`egrep "*Timing for Writing.*domain[[:space:]]*${dom}" $input | egrep -v "restart|filter" | awk '{match($0,"[0-9.]*[[:space:]]elapsed",a)}{print a[0]}' | awk 'BEGIN {sum=0;nc=0}; {sum=sum+$1;nc=nc+1}; END {printf "%.5f %d", sum, nc}'`
+  outstep[$dom]=`echo $stat | awk '{print $2}'`
+  outsum[$dom]=0.0
+  if [ "${outstep[$dom]}" -gt "0" ]; then
+   outsum[$dom]=`echo $stat | awk '{print $1}'`
+   outsum[0]=`echo "scale=6;${outsum[0]}+${outsum[$dom]}" | bc -q`
+   outime[$dom]=`echo "scale=6;${outsum[$dom]}/${outstep[$dom]}" | bc -q`
+  fi
+ done
+fi
+
+for dom in `seq 0 $nd`
+do
+ isum[$dom]=`echo "scale=6;${inputsum[$dom]}+${irestartsum[$dom]}+${ilateralsum[$dom]}+${orestartsum[$dom]}+${outsum[$dom]}" | bc -q`
+done
+
+for dom in `seq 1 $nd`
+do
+ lasto[$dom]=`egrep "*Timing for .*domain[[:space:]]*${dom}" $input | tail -1 | grep -v "for main" | grep -v "restart" | wc -l`
+ if [ "${lasto[$dom]}" -eq "1" ]; then
+  lastotime[$dom]=`egrep "*Timing for Writing .*domain[[:space:]]*${dom}" $input | tail -1 | grep -v "restart" | awk '{match($0,"[0-9.]*[[:space:]]elapsed",a)}{print a[0]}' | awk '{print $1}'`
+ else
+  lastotime[$dom]=0.0
+ fi
+done
+
+lastrtime[0]=0.0
+for dom in `seq 1 $nd`
+do
+ lastr[$dom]=`egrep "*Timing for .*domain[[:space:]]*${dom}" $input | tail -1 | grep -v "for main" | grep "restart" | wc -l`
+ if [ "${lastr[$dom]}" -eq "1" ]; then
+  lastrtime[$dom]=`egrep "*Timing for Writing .*domain[[:space:]]*${dom}" $input | tail -1 | grep "restart" | awk '{match($0,"[0-9.]*[[:space:]]elapsed",a)}{print a[0]}' | awk '{print $1}'`
+ else
+  lastrtime[$dom]=0.0
+ fi
+ lastrtime[0]=`echo "scale=6;${lastrtime[0]}+${lastrtime[$dom]}" | bc -q`
+done
+
+csum[0]=0.0
+if [ "$nd" -ge "1" ]; then
+ for dom in `seq $nd -1 1`
+ do
+#echo "Domain $dom"
+  stat=`egrep "*Timing for main.*domain[[:space:]]*${dom}" $input | awk '{match($0,"[0-9.]*[[:space:]]elapsed",a)}{print a[0]}' | awk 'BEGIN {sum=0;nc=0}; {sum=sum+$1;nc=nc+1}; END {printf "%.5f %d", sum, nc}'`
+  cstep[$dom]=`echo $stat | awk '{print $2}'`
+  csum[$dom]=0.0
+  if [ "${cstep[$dom]}" -gt "0" ]; then
+   subdom=$(($dom+1))
+   allsum[$dom]=`echo $stat | awk '{print $1}'`
+#
+   if [ "$dom" -eq "1" -a "$nd" -eq "1" ]; then
+#echo "${allsum[$dom]}-${outsum[$dom]}-${ilateralsum[$dom]}-${orestartsum[0]}+${lastrtime[0]}"
+    csum[$dom]=`echo "scale=6;${allsum[$dom]}-${outsum[$dom]}-${ilateralsum[$dom]}-${orestartsum[0]}+${lastrtime[0]}" | bc -q`
+#
+   elif [ "$dom" -eq "$nd" -a "$nd" -gt "1" ]; then
+#echo "${allsum[$dom]}-${outsum[$dom]}"
+    csum[$dom]=`echo "scale=6;${allsum[$dom]}-${outsum[$dom]}" | bc -q`
+#
+   elif [ "$dom" -eq "1" -a "$nd" -gt "1" ]; then
+#echo "${allsum[$dom]}-${allsum[$subdom]}-${outsum[$dom]}-${inputsum[$subdom]}-${irestartsum[$subdom]}-${ilateralsum[$dom]}-${orestartsum[0]}+${lastrtime[0]}"
+    csum[$dom]=`echo "scale=6;${allsum[$dom]}-${allsum[$subdom]}-${outsum[$dom]}-${inputsum[$subdom]}-${irestartsum[$subdom]}-${ilateralsum[$dom]}-${orestartsum[0]}+${lastrtime[0]}" | bc -q`
+#
+   elif [ "$dom" -ne "1" -a "$dom" -ne "$nd" -a "$nd" -gt "1" ]; then
+#echo "${allsum[$dom]}-${allsum[$subdom]}-${outsum[$dom]}-${inputsum[$subdom]}-${irestartsum[$subdom]}-${ilateralsum[$dom]}"
+    csum[$dom]=`echo "scale=6;${allsum[$dom]}-${allsum[$subdom]}-${outsum[$dom]}-${inputsum[$subdom]}-${irestartsum[$subdom]}-${ilateralsum[$dom]}" | bc -q`
+
+   fi
+#
+#echo "${csum[$dom]}+${lastotime[$dom]}"
+   csum[$dom]=`echo "scale=6;${csum[$dom]}+${lastotime[$dom]}" | bc -q`
+   csum[0]=`echo "scale=6;${csum[0]}+${csum[$dom]}" | bc -q`
+   ctime[$dom]=`echo "scale=6;${csum[$dom]}/${cstep[$dom]}" | bc -q`
+  fi
+ done
+fi
+
+sum=`echo "scale=6;$csum+${isum[0]}" | bc -q`
+
+
+echo "=========================================="
+printf "Computing Time            =%12.5f\n\n" ${csum[0]}
+if [ "$nd" -ge "1" ]; then
+ for dom in `seq 1 $nd`
+ do
+  if [ "${cstep[$dom]}" -gt "0" ]; then
+   printf " |  [Domain%2d]            =%12.5f\n" $dom ${csum[$dom]}
+   printf " \             /%4d Step =%12.5f\n" ${cstep[$dom]} ${ctime[$dom]}
+  fi
+ done
+fi
+echo "=========================================="
+printf "I/O Time                  =%12.5f\n" $isum
+if [ "$nd" -ge "1" ]; then
+ for dom in `seq 1 $nd`
+ do
+  if [ `echo "${isum[$dom]} > 0.0" | bc -q` -eq "1" ]; then
+   echo " -----------------------------------------"
+   printf " + [Domain%2d]             =%12.5f\n" $dom ${isum[$dom]}
+   echo " -----------------------------------------"
+  fi
+  if [ "${inputstep[$dom]}" -gt "0" ]; then
+   printf " |         (Read wrfinput) =%12.5f\n" ${inputsum[$dom]}
+   printf " \               /%3d Time =%12.5f\n" ${inputstep[$dom]} ${inputime[$dom]}
+  fi
+  if [ "${irestartstep[$dom]}" -gt "0" ]; then
+   printf " |       (Read wrfrestart) =%12.5f\n" ${irestartsum[$dom]}
+   printf " \               /%3d Time =%12.5f\n" ${irestartstep[$dom]} ${irestartime[$dom]}
+  fi
+  if [ "${ilateralstep[$dom]}" -gt "0" ]; then
+   printf " | (Read lateral boundary) =%12.5f\n" ${ilateralsum[$dom]}
+   printf " \               /%3d Time =%12.5f\n" ${ilateralstep[$dom]} ${ilateraltime[$dom]}
+  fi
+  if [ "${outstep[$dom]}" -gt "0" ]; then
+   printf " |          (Write wrfout) =%12.5f\n" ${outsum[$dom]}
+   printf " \               /%3d Time =%12.5f\n" ${outstep[$dom]} ${outime[$dom]}
+  fi
+  if [ "${orestartstep[$dom]}" -gt "0" ]; then
+   printf " |      (Write wrfrestart) =%12.5f\n" ${orestartsum[$dom]}
+   printf " \               /%3d Time =%12.5f\n" ${orestartstep[$dom]} ${orestartime[$dom]}
+  fi
+ done
+fi
+echo "=========================================="
+printf "   WRF TIME               =%12.5f\n" $sum
+printf "  (Some init* routines are not included)\n"
+# This is for Jason's specific modifications for WRF timing
+[ `echo "$initime > 0.0" | bc -q` -eq "1" ] && printf "          Time (wrf_init) =%12.5f\n" $initime
+[ `echo "$dfitime > 0.0" | bc -q` -eq "1" ] && printf "          Time (wrf_dfi)  =%12.5f\n" $dfitime
+[ `echo "$runtime > 0.0" | bc -q` -eq "1" ] && printf "          Time (wrf_run)  =%12.5f\n" $runtime
+[ `echo "$finaltime > 0.0" | bc -q` -eq "1" ] && printf "     Time (wrf_finalize)  =%12.5f\n" $finaltime
+echo "=========================================="
