@@ -3,25 +3,50 @@
 # This script is made by jonggwan.do at gmail.com.
 # This requires 'bash', 'grep', 'gawk', and 'bc' if your linux system do not have this util.
 #
-# April 1, 2017:        Initial version
-# June 29, 2017:        Added "Writing filter output"
-# July 4, 2017:         Added aux* input/output
-# July 5, 2017:         Changed output format
+# Apr 01, 2017: Initial version
+# Jun 29, 2017: Added "Writing filter output"
+# Jul 04, 2017: Added aux* input/output
+# Jul 05, 2017: Changed output format
+# Aug 10, 2017: Added complex nesting case which need namelist.input for nesting hierachy understanding
 #
 
 if [ "$#" -eq "0" ]; then
  input=rsl.error.0000
-# echo "Since there is no passed filename, it will use $input as filename for timing analysis"
+ echo "Since there is no passed filename, it will use $input as filename for timing analysis"
 else
  input=$1
 fi
 
 [[ -f $input ]]  || { echo "File does not exist" ; exit 1; }
 
-nd=`egrep "*Timing for.*domain[[:space:]]*" $input | awk '{match($0,"domain[[:space:]]*[0-9]*:",a)}{print a[0]}' | awk '{print $2}' | sort | uniq | sed 's/.$//' | tail -1`
+if [ -f "namelist.input" ]; then
+ nd=`grep -i max_dom namelist.input | sed 's/ //g' | sed 's/=//g' | sed 's/max_dom//Ig' | tr ',' ' ' | cut -d' ' -f1`
+else
+ nd=`egrep "*Timing for.*domain[[:space:]]*" $input | awk '{match($0,"domain[[:space:]]*[0-9]*:",a)}{print a[0]}' | awk '{print $2}' | sort | uniq | sed 's/.$//' | tail -1`
+fi
+
+if [ "$nd" -gt "1" ]; then
+ if [ -f "namelist.input" ]; then
+  grid_id=(`grep -i grid_id namelist.input | sed 's/ //g' | sed 's/=//g' | sed 's/grid_id//Ig' | tr ',' ' '`)
+  parent_id=(`grep -i parent_id namelist.input | sed 's/ //g' | sed 's/=//g' | sed 's/parent_id//Ig' | tr ',' ' '`)
+  for dom in `seq 0 $(($nd-1))`
+  do
+   if [ "${parent_id[$dom]}" -ne "${grid_id[$dom]}" ]; then
+    idx=${parent_id[$dom]}
+    subdom[$idx]="${subdom[$idx]} ${grid_id[$dom]}"
+   fi
+  done
+ else
+  for dom in `seq 1 $nd`
+  do
+   subdom[$dom]=$(($dom+1))
+  done
+  echo "For better nesting understanding, used namelist.input file is required."
+ fi
+fi
 
 ##############################################################
-# This is JongGwan's specific modification for WRF timing
+# This is jonggwan's specific modification for WRF timing
 if [ `grep "Timing for wrf_init" $input | wc -l` -eq "1" ]; then
  initime=`egrep "*Timing for wrf_init.*" $input | awk '{match($0,"[0-9.]*[[:space:]]elapsed",a)}{print a[0]}' | awk '{print $1}'`
 else
@@ -186,8 +211,18 @@ if [ "$nd" -ge "1" ]; then
   cstep[$dom]=`echo $stat | awk '{print $2}'`
   csum[$dom]=0.0
   if [ "${cstep[$dom]}" -gt "0" ]; then
-   subdom=$(($dom+1))
+#   subdom=$(($dom+1))
    allsum[$dom]=`echo $stat | awk '{print $1}'`
+
+   aaa="0.0"
+   iii="0.0"
+   rrr="0.0"
+   for subs in ${subdom[$dom]}
+   do
+    aaa=`echo "scale=6;$aaa+${allsum[$subs]}" | bc -q`
+    iii=`echo "scale=6;$iii+${inputsum[$subs]}" | bc -q`
+    rrr=`echo "scale=6;$rrr+${irestartsum[$subs]}" | bc -q`
+   done
 #
 # Single domain case
    if [ "$dom" -eq "1" -a "$nd" -eq "1" ]; then
@@ -199,11 +234,11 @@ if [ "$nd" -ge "1" ]; then
 #
 # Most outer domain in nested case
    elif [ "$dom" -eq "1" -a "$nd" -gt "1" ]; then
-    csum[$dom]=`echo "scale=6;${allsum[$dom]}-${allsum[$subdom]}-${outsum[$dom]}-${iauxsum[$dom]}-${ofiltersum[$dom]}-${inputsum[$subdom]}-${irestartsum[$subdom]}-${ilateralsum[$dom]}-${orestartsum[0]}+${lastrtime[0]}" | bc -q`
+    csum[$dom]=`echo "scale=6;${allsum[$dom]}-$aaa-${outsum[$dom]}-${iauxsum[$dom]}-${ofiltersum[$dom]}-$iii-$rrr-${ilateralsum[$dom]}-${orestartsum[0]}+${lastrtime[0]}" | bc -q`
 #
 # Mid-domain in nested case
    elif [ "$dom" -ne "1" -a "$dom" -ne "$nd" -a "$nd" -gt "1" ]; then
-    csum[$dom]=`echo "scale=6;${allsum[$dom]}-${allsum[$subdom]}-${outsum[$dom]}-${iauxsum[$dom]}-${ofiltersum[$dom]}-${inputsum[$subdom]}-${irestartsum[$subdom]}-${ilateralsum[$dom]}" | bc -q`
+    csum[$dom]=`echo "scale=6;${allsum[$dom]}-$aaa-${outsum[$dom]}-${iauxsum[$dom]}-${ofiltersum[$dom]}-$iii-$rrr-${ilateralsum[$dom]}" | bc -q`
 
    fi
 #
@@ -216,26 +251,39 @@ fi
 
 sum=`echo "scale=6;$csum+${isum[0]}" | bc -q`
 
+reset=$(tput sgr0)
+bold=$(tput bold)
+blink=$(tput blink)
+rev=$(tput rev)
+black=$(tput setaf 0)
+red=$(tput setaf 1)
+green=$(tput setaf 2)
+yellow=$(tput setaf 3)
+blue=$(tput setaf 4)
+magenta=$(tput setaf 5)
+cyan=$(tput setaf 6)
+white=$(tput setaf 7)
+defcol=$(tput setaf 9)
 
 echo "======================================================"
-printf "Computing Time       = %12.5f\n\n" ${csum[0]}
+printf "Computing Time       = ${bold}${yellow}%12.5f${reset}\n\n" ${csum[0]}
 printf " [Domain] %12s %10s %8s\n" "Time" "Average" "Step"
 if [ "$nd" -ge "1" ]; then
  for dom in `seq 1 $nd`
  do
   if [ "${cstep[$dom]}" -gt "0" ]; then
-   printf "      %2d %13.5f %10.5f %8d\n" $dom ${csum[$dom]} ${ctime[$dom]} ${cstep[$dom]}
+   printf "      %2d ${bold}%13.5f${reset} %10.5f %8d\n" $dom ${csum[$dom]} ${ctime[$dom]} ${cstep[$dom]}
   fi
  done
 fi
 echo "======================================================"
-printf "I/O Time             = %12.5f\n\n" $isum
+printf "I/O Time             = ${bold}${yellow}%12.5f${reset}\n\n" $isum
 if [ "$nd" -ge "1" ]; then
  printf " [Domain] %12s %12s %12s\n" "I/O_Sum" "Read" "Write"
  for dom in `seq 1 $nd`
  do
   if [ `echo "${isum[$dom]} > 0.0" | bc -q` -eq "1" ]; then
-   printf "      %2d  %12.5f %12.5f %12.5f\n" $dom ${isum[$dom]} ${rdsum[$dom]} ${wrsum[$dom]}
+   printf "      %2d  ${bold}%12.5f${reset} %12.5f %12.5f\n" $dom ${isum[$dom]} ${rdsum[$dom]} ${wrsum[$dom]}
   fi
  done
 
@@ -247,40 +295,40 @@ if [ "$nd" -ge "1" ]; then
    echo " -----------------------------------------------------"
   fi
   if [ "${irestartstep[$dom]}" -gt "0" ]; then
-   printf "%6d %15s %13.5f %10.5f %5d\n" $dom "read_restart" ${irestartsum[$dom]} ${irestartime[$dom]} ${irestartstep[$dom]}
+   printf "%6d %15s ${bold}%13.5f${reset} %10.5f %5d\n" $dom "read_restart" ${irestartsum[$dom]} ${irestartime[$dom]} ${irestartstep[$dom]}
   fi
   if [ "${inputstep[$dom]}" -gt "0" ]; then
-   printf "%6d %15s %13.5f %10.5f %5d\n" $dom "read_input" ${inputsum[$dom]} ${inputime[$dom]} ${inputstep[$dom]}
+   printf "%6d %15s ${bold}%13.5f${reset} %10.5f %5d\n" $dom "read_input" ${inputsum[$dom]} ${inputime[$dom]} ${inputstep[$dom]}
   fi
   if [ "${ilateralstep[$dom]}" -gt "0" ]; then
-   printf "%6d %15s %13.5f %10.5f %5d\n" $dom "read_boundary" ${ilateralsum[$dom]} ${ilateraltime[$dom]} ${ilateralstep[$dom]}
+   printf "%6d %15s ${bold}%13.5f${reset} %10.5f %5d\n" $dom "read_boundary" ${ilateralsum[$dom]} ${ilateraltime[$dom]} ${ilateralstep[$dom]}
   fi
   if [ "${iauxstep[$dom]}" -gt "0" ]; then
-   printf "%6d %15s %13.5f %10.5f %5d\n" $dom "read_aux" ${iauxsum[$dom]} ${iauxtime[$dom]} ${iauxstep[$dom]}
+   printf "%6d %15s ${bold}%13.5f${reset} %10.5f %5d\n" $dom "read_aux" ${iauxsum[$dom]} ${iauxtime[$dom]} ${iauxstep[$dom]}
   fi
   if [ "${outstep[$dom]}" -gt "0" ]; then
-   printf "%6d %15s %13.5f %10.5f %5d\n" $dom "write_output" ${outsum[$dom]} ${outime[$dom]} ${outstep[$dom]}
+   printf "%6d %15s ${bold}%13.5f${reset} %10.5f %5d\n" $dom "write_output" ${outsum[$dom]} ${outime[$dom]} ${outstep[$dom]}
   fi
   if [ "${ofilterstep[$dom]}" -gt "0" ]; then
-   printf "%6d %15s %13.5f %10.5f %5d\n" $dom "write_filter" ${ofiltersum[$dom]} ${ofiltertime[$dom]} ${ofilterstep[$dom]}
+   printf "%6d %15s ${bold}%13.5f${reset} %10.5f %5d\n" $dom "write_filter" ${ofiltersum[$dom]} ${ofiltertime[$dom]} ${ofilterstep[$dom]}
   fi
   if [ "${orestartstep[$dom]}" -gt "0" ]; then
-   printf "%6d %15s %13.5f %10.5f %5d\n" $dom "write_restart" ${orestartsum[$dom]} ${orestartime[$dom]} ${orestartstep[$dom]}
+   printf "%6d %15s ${bold}%13.5f${reset} %10.5f %5d\n" $dom "write_restart" ${orestartsum[$dom]} ${orestartime[$dom]} ${orestartstep[$dom]}
   fi
  done
 fi
 echo "======================================================"
-# This is for JongGwan's specific modifications for WRF timing
-[ `echo "$initime > 0.0" | bc -q` -eq "1" ] && printf "     Time (wrf_init) = %12.5f\n" $initime
-[ `echo "$dfitime > 0.001" | bc -q` -eq "1" ] && printf "      Time (wrf_dfi) = %12.5f\n" $dfitime
-[ `echo "$runtime > 0.0" | bc -q` -eq "1" ] && printf "      Time (wrf_run) = %12.5f\n" $runtime
-[ `echo "$finaltime > 0.0" | bc -q` -eq "1" ] && printf "    Time (wrf_final) = %12.5f\n" $finaltime
+# This is for jonggwan's specific modifications for WRF timing
+[ `echo "$initime > 0.0" | bc -q` -eq "1" ] && printf "     Time (wrf_init) = ${bold}%12.5f${reset}\n" $initime
+[ `echo "$dfitime > 0.001" | bc -q` -eq "1" ] && printf "      Time (wrf_dfi) = ${bold}%12.5f${reset}\n" $dfitime
+[ `echo "$runtime > 0.0" | bc -q` -eq "1" ] && printf "      Time (wrf_run) = ${bold}%12.5f${reset}\n" $runtime
+[ `echo "$finaltime > 0.0" | bc -q` -eq "1" ] && printf "    Time (wrf_final) = ${bold}%12.5f${reset}\n" $finaltime
 jsum=`echo "scale=6;$initime+$dfitime+$runtime+$finaltime" | bc -q`
 ######################################################################
 if [ `echo "$jsum > 0.0" | bc -q` -eq "1" ]; then
- printf "\n        ELAPSED TIME = %12.5f\n" $jsum
+ printf "\n        ELAPSED TIME = ${bold}${yellow}%12.5f${reset}\n" $jsum
 else
- printf "        ELAPSED TIME = %12.5f\n" $sum
+ printf "        ELAPSED TIME = ${bold}${yellow}%12.5f${reset}\n" $sum
  printf " (Some init*/final* routines are not included)\n"
 fi
 echo "======================================================"
