@@ -211,7 +211,6 @@ if [ "$nd" -ge "1" ]; then
   cstep[$dom]=`echo $stat | awk '{print $2}'`
   csum[$dom]=0.0
   if [ "${cstep[$dom]}" -gt "0" ]; then
-#   subdom=$(($dom+1))
    allsum[$dom]=`echo $stat | awk '{print $1}'`
 
    aaa="0.0"
