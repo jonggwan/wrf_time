@@ -37,7 +37,7 @@ if [ "$nd" -gt "1" ]; then
    fi
   done
  else
-  for dom in `seq 1 $nd`
+  for dom in `seq 1 $(($nd-1))`
   do
    subdom[$dom]=$(($dom+1))
   done
