@@ -12,6 +12,7 @@
 
 if [ "$#" -eq "0" ]; then
  input=rsl.error.0000
+ [[ -f $input ]] || input=rsl.out.0000
  echo "Since there is no passed filename, it will use $input as filename for timing analysis"
 else
  input=$1
