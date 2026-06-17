@@ -22,7 +22,7 @@ fi
 if [ -f "namelist.input" ]; then
  nd=`grep -i max_dom namelist.input | sed 's/ //g' | sed 's/=//g' | sed 's/max_dom//Ig' | tr ',' ' ' | cut -d' ' -f1`
 else
- nd=`egrep "*Timing for.*domain[[:space:]]*" $input | awk '{match($0,"domain[[:space:]]*[0-9]*:",a)}{print a[0]}' | awk '{print $2}' | sort | uniq | sed 's/.$//' | tail -1`
+ nd=`egrep "Timing for.*domain[[:space:]]*" $input | awk '{match($0,"domain[[:space:]]*[0-9]*:",a)}{print a[0]}' | awk '{print $2}' | sort | uniq | sed 's/.$//' | tail -1`
 fi
 
 if [ "$nd" -gt "1" ]; then
@@ -48,22 +48,22 @@ fi
 ##############################################################
 # This is jonggwan's specific modification for WRF timing
 if [ `grep "Timing for wrf_init" $input | wc -l` -eq "1" ]; then
- initime=`egrep "*Timing for wrf_init.*" $input | awk '{match($0,"[0-9.]*[[:space:]]elapsed",a)}{print a[0]}' | awk '{print $1}'`
+ initime=`egrep "Timing for wrf_init.*" $input | awk '{match($0,"[0-9.]*[[:space:]]elapsed",a)}{print a[0]}' | awk '{print $1}'`
 else
  initime=0.0
 fi
 if [ `grep "Timing for wrf_dfi" $input | wc -l` -eq "1" ]; then
- dfitime=`egrep "*Timing for wrf_dfi.*" $input | awk '{match($0,"[0-9.]*[[:space:]]elapsed",a)}{print a[0]}' | awk '{print $1}'`
+ dfitime=`egrep "Timing for wrf_dfi.*" $input | awk '{match($0,"[0-9.]*[[:space:]]elapsed",a)}{print a[0]}' | awk '{print $1}'`
 else
  dfitime=0.0
 fi
 if [ `grep "Timing for wrf_run" $input | wc -l` -eq "1" ]; then
- runtime=`egrep "*Timing for wrf_run.*" $input | awk '{match($0,"[0-9.]*[[:space:]]elapsed",a)}{print a[0]}' | awk '{print $1}'`
+ runtime=`egrep "Timing for wrf_run.*" $input | awk '{match($0,"[0-9.]*[[:space:]]elapsed",a)}{print a[0]}' | awk '{print $1}'`
 else
  runtime=0.0
 fi
 if [ `grep "Timing for wrf_final" $input | wc -l` -eq "1" ]; then
- finaltime=`egrep "*Timing for wrf_final.*" $input | awk '{match($0,"[0-9.]*[[:space:]]elapsed",a)}{print a[0]}' | awk '{print $1}'`
+ finaltime=`egrep "Timing for wrf_final.*" $input | awk '{match($0,"[0-9.]*[[:space:]]elapsed",a)}{print a[0]}' | awk '{print $1}'`
 else
  finaltime=0.0
 fi
@@ -73,7 +73,7 @@ inputsum[0]=0.0
 if [ "$nd" -ge "1" ]; then
  for dom in `seq 1 $nd`
  do
-  stat=`egrep "*Timing for processing wrfinput.*domain[[:space:]]*${dom}" $input | awk '{match($0,"[0-9.]*[[:space:]]elapsed",a)}{print a[0]}' | awk 'BEGIN {sum=0;nc=0}; {sum=sum+$1;nc=nc+1}; END {printf "%.5f %d", sum, nc}'`
+  stat=`egrep "Timing for processing wrfinput.*domain[[:space:]]*${dom}" $input | awk '{match($0,"[0-9.]*[[:space:]]elapsed",a)}{print a[0]}' | awk 'BEGIN {sum=0;nc=0}; {sum=sum+$1;nc=nc+1}; END {printf "%.5f %d", sum, nc}'`
   inputstep[$dom]=`echo $stat | awk '{print $2}'`
   inputsum[$dom]=0.0
   if [ "${inputstep[$dom]}" -gt "0" ]; then
@@ -88,7 +88,7 @@ irestartsum[0]=0.0
 if [ "$nd" -ge "1" ]; then
  for dom in `seq 1 $nd`
  do
-  stat=`egrep "*Timing for processing restart.*domain[[:space:]]*${dom}" $input | awk '{match($0,"[0-9.]*[[:space:]]elapsed",a)}{print a[0]}' | awk 'BEGIN {sum=0;nc=0}; {sum=sum+$1;nc=nc+1}; END {printf "%.5f %d", sum, nc}'`
+  stat=`egrep "Timing for processing restart.*domain[[:space:]]*${dom}" $input | awk '{match($0,"[0-9.]*[[:space:]]elapsed",a)}{print a[0]}' | awk 'BEGIN {sum=0;nc=0}; {sum=sum+$1;nc=nc+1}; END {printf "%.5f %d", sum, nc}'`
   irestartstep[$dom]=`echo $stat | awk '{print $2}'`
   irestartsum[$dom]=0.0
   if [ "${irestartstep[$dom]}" -gt "0" ]; then
@@ -103,7 +103,7 @@ ilateralsum[0]=0.0
 if [ "$nd" -ge "1" ]; then
  for dom in `seq 1 $nd`
  do
-  stat=`egrep "*Timing for processing lateral.*domain[[:space:]]*${dom}" $input | awk '{match($0,"[0-9.]*[[:space:]]elapsed",a)}{print a[0]}' | awk 'BEGIN {sum=0;nc=0}; {sum=sum+$1;nc=nc+1}; END {printf "%.5f %d", sum, nc}'`
+  stat=`egrep "Timing for processing lateral.*domain[[:space:]]*${dom}" $input | awk '{match($0,"[0-9.]*[[:space:]]elapsed",a)}{print a[0]}' | awk 'BEGIN {sum=0;nc=0}; {sum=sum+$1;nc=nc+1}; END {printf "%.5f %d", sum, nc}'`
   ilateralstep[$dom]=`echo $stat | awk '{print $2}'`
   ilateralsum[$dom]=0.0
   if [ "${ilateralstep[$dom]}" -gt "0" ]; then
@@ -118,7 +118,7 @@ iauxsum[0]=0.0
 if [ "$nd" -ge "1" ]; then
  for dom in `seq 1 $nd`
  do
-  stat=`egrep "*Timing for processing aux input.*domain[[:space:]]*${dom}" $input | awk '{match($0,"[0-9.]*[[:space:]]elapsed",a)}{print a[0]}' | awk 'BEGIN {sum=0;nc=0}; {sum=sum+$1;nc=nc+1}; END {printf "%.5f %d", sum, nc}'`
+  stat=`egrep "Timing for processing aux input.*domain[[:space:]]*${dom}" $input | awk '{match($0,"[0-9.]*[[:space:]]elapsed",a)}{print a[0]}' | awk 'BEGIN {sum=0;nc=0}; {sum=sum+$1;nc=nc+1}; END {printf "%.5f %d", sum, nc}'`
   iauxstep[$dom]=`echo $stat | awk '{print $2}'`
   iauxsum[$dom]=0.0
   if [ "${iauxstep[$dom]}" -gt "0" ]; then
@@ -133,7 +133,7 @@ orestartsum[0]=0.0
 if [ "$nd" -ge "1" ]; then
  for dom in `seq 1 $nd`
  do
-  stat=`egrep "*Timing for Writing restart.*domain[[:space:]]*${dom}" $input | awk '{match($0,"[0-9.]*[[:space:]]elapsed",a)}{print a[0]}' | awk 'BEGIN {sum=0;nc=0}; {sum=sum+$1;nc=nc+1}; END {printf "%.5f %d %.5f", sum, nc, $1}'`
+  stat=`egrep "Timing for Writing restart.*domain[[:space:]]*${dom}" $input | awk '{match($0,"[0-9.]*[[:space:]]elapsed",a)}{print a[0]}' | awk 'BEGIN {sum=0;nc=0}; {sum=sum+$1;nc=nc+1}; END {printf "%.5f %d %.5f", sum, nc, $1}'`
   orestartstep[$dom]=`echo $stat | awk '{print $2}'`
   orestartsum[$dom]=0.0
   if [ "${orestartstep[$dom]}" -gt "0" ]; then
@@ -148,7 +148,7 @@ outsum[0]=0.0
 if [ "$nd" -ge "1" ]; then
  for dom in `seq 1 $nd`
  do
-  stat=`egrep "*Timing for Writing.*domain[[:space:]]*${dom}" $input | egrep -v "restart|filter" | awk '{match($0,"[0-9.]*[[:space:]]elapsed",a)}{print a[0]}' | awk 'BEGIN {sum=0;nc=0}; {sum=sum+$1;nc=nc+1}; END {printf "%.5f %d", sum, nc}'`
+  stat=`egrep "Timing for Writing.*domain[[:space:]]*${dom}" $input | egrep -v "restart|filter" | awk '{match($0,"[0-9.]*[[:space:]]elapsed",a)}{print a[0]}' | awk 'BEGIN {sum=0;nc=0}; {sum=sum+$1;nc=nc+1}; END {printf "%.5f %d", sum, nc}'`
   outstep[$dom]=`echo $stat | awk '{print $2}'`
   outsum[$dom]=0.0
   if [ "${outstep[$dom]}" -gt "0" ]; then
@@ -163,7 +163,7 @@ ofiltersum[0]=0.0
 if [ "$nd" -ge "1" ]; then
  for dom in `seq 1 $nd`
  do
-  stat=`egrep "*Timing for Writing filter.*domain[[:space:]]*${dom}" $input | awk '{match($0,"[0-9.]*[[:space:]]elapsed",a)}{print a[0]}' | awk 'BEGIN {sum=0;nc=0}; {sum=sum+$1;nc=nc+1}; END {printf "%.5f %d", sum, nc}'`
+  stat=`egrep "Timing for Writing filter.*domain[[:space:]]*${dom}" $input | awk '{match($0,"[0-9.]*[[:space:]]elapsed",a)}{print a[0]}' | awk 'BEGIN {sum=0;nc=0}; {sum=sum+$1;nc=nc+1}; END {printf "%.5f %d", sum, nc}'`
   ofilterstep[$dom]=`echo $stat | awk '{print $2}'`
   ofiltersum[$dom]=0.0
   if [ "${ofilterstep[$dom]}" -gt "0" ]; then
@@ -183,9 +183,9 @@ done
 
 for dom in `seq 1 $nd`
 do
- lasto[$dom]=`egrep "*Timing for .*domain[[:space:]]*${dom}" $input | tail -7 | grep -v "for main" | grep -v "restart" | wc -l`
+ lasto[$dom]=`egrep "Timing for .*domain[[:space:]]*${dom}" $input | tail -7 | grep -v "for main" | grep -v "restart" | wc -l`
  if [ "${lasto[$dom]}" -eq "1" ]; then
-  lastotime[$dom]=`egrep "*Timing for .*domain[[:space:]]*${dom}" $input | tail -7 | grep -v "for main" | grep -v "restart" | awk '{match($0,"[0-9.]*[[:space:]]elapsed",a)}{print a[0]}' | awk 'BEGIN {lsum=0};{lsum=lsum+$1}; END{print lsum}'`
+  lastotime[$dom]=`egrep "Timing for .*domain[[:space:]]*${dom}" $input | tail -7 | grep -v "for main" | grep -v "restart" | awk '{match($0,"[0-9.]*[[:space:]]elapsed",a)}{print a[0]}' | awk 'BEGIN {lsum=0};{lsum=lsum+$1}; END{print lsum}'`
  else
   lastotime[$dom]=0.0
  fi
@@ -194,9 +194,9 @@ done
 lastrtime[0]=0.0
 for dom in `seq 1 $nd`
 do
- lastr[$dom]=`egrep "*Timing for .*domain[[:space:]]*${dom}" $input | tail -1 | grep -v "for main" | grep "restart" | wc -l`
+ lastr[$dom]=`egrep "Timing for .*domain[[:space:]]*${dom}" $input | tail -1 | grep -v "for main" | grep "restart" | wc -l`
  if [ "${lastr[$dom]}" -eq "1" ]; then
-  lastrtime[$dom]=`egrep "*Timing for Writing .*domain[[:space:]]*${dom}" $input | tail -1 | grep "restart" | awk '{match($0,"[0-9.]*[[:space:]]elapsed",a)}{print a[0]}' | awk '{print $1}'`
+  lastrtime[$dom]=`egrep "Timing for Writing .*domain[[:space:]]*${dom}" $input | tail -1 | grep "restart" | awk '{match($0,"[0-9.]*[[:space:]]elapsed",a)}{print a[0]}' | awk '{print $1}'`
  else
   lastrtime[$dom]=0.0
  fi
@@ -207,7 +207,7 @@ csum[0]=0.0
 if [ "$nd" -ge "1" ]; then
  for dom in `seq $nd -1 1`
  do
-  stat=`egrep "*Timing for main.*domain[[:space:]]*${dom}" $input | awk '{match($0,"[0-9.]*[[:space:]]elapsed",a)}{print a[0]}' | awk 'BEGIN {sum=0;nc=0}; {sum=sum+$1;nc=nc+1}; END {printf "%.5f %d", sum, nc}'`
+  stat=`egrep "Timing for main.*domain[[:space:]]*${dom}" $input | awk '{match($0,"[0-9.]*[[:space:]]elapsed",a)}{print a[0]}' | awk 'BEGIN {sum=0;nc=0}; {sum=sum+$1;nc=nc+1}; END {printf "%.5f %d", sum, nc}'`
   cstep[$dom]=`echo $stat | awk '{print $2}'`
   csum[$dom]=0.0
   if [ "${cstep[$dom]}" -gt "0" ]; then
